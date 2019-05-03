@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use BadSernderReceiver::*;
+use BadParticipant::*;
+use ContactMethod::*;
 use Invalid::*;
 use ShortAlphas::*;
 
@@ -38,7 +39,7 @@ enum ShortAlphas {
 }
 
 #[derive(Debug)]
-enum BadSernderReceiver {
+enum BadParticipant {
     BusinessNameTooLong(usize),
 }
 
@@ -46,8 +47,8 @@ enum BadSernderReceiver {
 enum Invalid {
     WhoPays(ShortAlphas),
     CostCentre(ShortAlphas),
-    Sender(BadSernderReceiver),
-    Receiver(BadSernderReceiver),
+    Sender(BadParticipant),
+    Receiver(BadParticipant),
     BadPhone(usize), // position
     BadEmail(usize), // position
 }
@@ -113,12 +114,12 @@ fn validate(cd: ConsignmentData) -> Vec<Invalid> {
 
     for (position, cm) in cd.contact_methods.iter().enumerate() {
         match cm {
-            ContactMethod::Phone(number) => {
+            Phone(number) => {
                 if is_too_long(number, MAX_LEN) {
                     errors.push(BadPhone(position))
                 }
             }
-            ContactMethod::Email(number) => {
+            Email(number) => {
                 if is_too_long(number, MAX_LEN) {
                     errors.push(BadEmail(position))
                 }
@@ -159,18 +160,14 @@ fn project(errors: Vec<Invalid>) -> ConsignmentFailed {
 
     for e in errors {
         match e {
-            CostCentre(ShortAlphas::NonAlpha) => failed.cost_centre.push(non_alpha()),
-            CostCentre(ShortAlphas::TooLong(n)) => failed.cost_centre.push(too_long(n)),
+            CostCentre(NonAlpha) => failed.cost_centre.push(non_alpha()),
+            CostCentre(TooLong(n)) => failed.cost_centre.push(too_long(n)),
 
-            WhoPays(ShortAlphas::NonAlpha) => failed.who_pays.push(non_alpha()),
-            WhoPays(ShortAlphas::TooLong(n)) => failed.who_pays.push(too_long(n)),
+            WhoPays(NonAlpha) => failed.who_pays.push(non_alpha()),
+            WhoPays(TooLong(n)) => failed.who_pays.push(too_long(n)),
 
-            Sender(BadSernderReceiver::BusinessNameTooLong(n)) => {
-                failed.sender.business_name.push(too_long(n))
-            }
-            Receiver(BadSernderReceiver::BusinessNameTooLong(n)) => {
-                failed.receiver.business_name.push(too_long(n))
-            }
+            Sender(BusinessNameTooLong(n)) => failed.sender.business_name.push(too_long(n)),
+            Receiver(BusinessNameTooLong(n)) => failed.receiver.business_name.push(too_long(n)),
             BadPhone(position) => upsert(&mut failed.contact_methods, position, "invalid phone"),
             BadEmail(position) => upsert(&mut failed.contact_methods, position, "invalid email"),
         }
@@ -195,7 +192,7 @@ pub fn play() {
         receiver: SenderReceiverDetails {
             business_name: "ok".to_owned(),
         },
-        contact_methods: vec![ContactMethod::Phone("12345".to_owned())],
+        contact_methods: vec![Phone("12345".to_owned())],
     });
 
     validate_and_print(ConsignmentData {
@@ -208,7 +205,7 @@ pub fn play() {
         receiver: SenderReceiverDetails {
             business_name: "ok".to_owned(),
         },
-        contact_methods: vec![ContactMethod::Phone("foo".to_owned())],
+        contact_methods: vec![Phone("foo".to_owned())],
     });
 
     validate_and_print(ConsignmentData {
@@ -222,10 +219,10 @@ pub fn play() {
             business_name: "bbbbb88888888888888888888".to_owned(),
         },
         contact_methods: vec![
-            ContactMethod::Email("foo".to_owned()),
-            ContactMethod::Phone("foo".repeat(10).to_owned()),
-            ContactMethod::Email("foo".to_owned()),
-            ContactMethod::Phone("foo".repeat(10).to_owned()),
+            Email("foo".to_owned()),
+            Phone("foo".repeat(10).to_owned()),
+            Email("foo".to_owned()),
+            Phone("foo".repeat(10).to_owned()),
         ],
     });
 }
