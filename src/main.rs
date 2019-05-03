@@ -1,10 +1,11 @@
 #[macro_use]
 extern crate validator_derive;
-extern crate validator;
+extern crate itertools;
 extern crate serde;
+extern crate validator;
 
-mod with_crate;
 mod from_scratch;
+mod with_crate;
 
 fn main() {
     with_crate::play();

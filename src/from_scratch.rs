@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use serde::Serialize;
 use std::collections::HashMap;
 use BadParticipant::*;
@@ -32,18 +33,18 @@ struct ConsignmentData {
     contact_methods: Vec<ContactMethod>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum ShortAlphas {
     TooLong(usize),
     NonAlpha,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum BadParticipant {
     BusinessNameTooLong(usize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Invalid {
     WhoPays(ShortAlphas),
     CostCentre(ShortAlphas),
@@ -145,7 +146,7 @@ fn upsert(errors: &mut HashMap<usize, Vec<String>>, position: usize, msg: &str) 
         .push(msg.to_owned());
 }
 
-fn project(errors: Vec<Invalid>) -> ConsignmentFailed {
+fn project_to_object(errors: &Vec<Invalid>) -> ConsignmentFailed {
     let mut failed = ConsignmentFailed {
         who_pays: vec![],
         cost_centre: vec![],
@@ -158,7 +159,7 @@ fn project(errors: Vec<Invalid>) -> ConsignmentFailed {
         contact_methods: HashMap::new(),
     };
 
-    for e in errors {
+    for &e in errors {
         match e {
             CostCentre(NonAlpha) => failed.cost_centre.push(non_alpha()),
             CostCentre(TooLong(n)) => failed.cost_centre.push(too_long(n)),
@@ -175,10 +176,39 @@ fn project(errors: Vec<Invalid>) -> ConsignmentFailed {
     failed
 }
 
+fn project_friendly_list(errors: &Vec<Invalid>) -> Vec<String> {
+    errors
+        .iter()
+        .map(|&e| match e {
+            CostCentre(NonAlpha) => format!("Cost centre {}", non_alpha()),
+            CostCentre(TooLong(n)) => format!("Cost centre is {}", too_long(n)),
+
+            WhoPays(NonAlpha) => format!("Who pays {}", non_alpha()),
+            WhoPays(TooLong(n)) => format!("Who pays is {}", too_long(n)),
+
+            Sender(BusinessNameTooLong(n)) => format!("Sender Business Name is {}", too_long(n)),
+            Receiver(BusinessNameTooLong(n)) => {
+                format!("Receiver Business Name is {}", too_long(n))
+            }
+            BadPhone(_) => "Contact phone is invalid".to_owned(),
+            BadEmail(_) => "Contact email is invalid".to_owned(),
+        })
+        .dedup()
+        .collect()
+}
+
 fn validate_and_print(cd: ConsignmentData) {
     println!("\n\n");
-    let failed = project(validate(cd));
-    println!("{}", serde_json::to_string_pretty(&failed).unwrap());
+    let errors = validate(cd);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&project_to_object(&errors)).unwrap()
+    );
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&project_friendly_list(&errors)).unwrap()
+    );
 }
 
 pub fn play() {
@@ -223,6 +253,7 @@ pub fn play() {
             Phone("foo".repeat(10).to_owned()),
             Email("foo".to_owned()),
             Phone("foo".repeat(10).to_owned()),
+            Email("foo".repeat(10).to_owned()),
         ],
     });
 }
