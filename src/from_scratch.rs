@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::collections::HashMap;
 use BadSernderReceiver::*;
 use Invalid::*;
 use ShortAlphas::*;
@@ -47,6 +48,8 @@ enum Invalid {
     CostCentre(ShortAlphas),
     Sender(BadSernderReceiver),
     Receiver(BadSernderReceiver),
+    BadPhone(usize), // position
+    BadEmail(usize), // position
 }
 
 #[derive(Debug, Serialize)]
@@ -66,8 +69,10 @@ struct ConsignmentFailed {
     cost_centre: Vec<String>,
 
     sender: SenderReceiverFailed,
-
     receiver: SenderReceiverFailed,
+
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    contact_methods: HashMap<usize, Vec<String>>,
 }
 
 fn is_too_long(s: &String, n: usize) -> bool {
@@ -106,6 +111,21 @@ fn validate(cd: ConsignmentData) -> Vec<Invalid> {
         errors.push(Receiver(BusinessNameTooLong(MAX_LEN)));
     };
 
+    for (position, cm) in cd.contact_methods.iter().enumerate() {
+        match cm {
+            ContactMethod::Phone(number) => {
+                if is_too_long(number, MAX_LEN) {
+                    errors.push(BadPhone(position))
+                }
+            }
+            ContactMethod::Email(number) => {
+                if is_too_long(number, MAX_LEN) {
+                    errors.push(BadEmail(position))
+                }
+            }
+        }
+    }
+
     errors
 }
 
@@ -115,6 +135,13 @@ fn non_alpha() -> String {
 
 fn too_long(n: usize) -> String {
     format!("too long (should be less than {} characters)", n)
+}
+
+fn upsert(errors: &mut HashMap<usize, Vec<String>>, position: usize, msg: &str) {
+    errors
+        .entry(position)
+        .or_insert(vec![])
+        .push(msg.to_owned());
 }
 
 fn project(errors: Vec<Invalid>) -> ConsignmentFailed {
@@ -127,6 +154,7 @@ fn project(errors: Vec<Invalid>) -> ConsignmentFailed {
         receiver: SenderReceiverFailed {
             business_name: vec![],
         },
+        contact_methods: HashMap::new(),
     };
 
     for e in errors {
@@ -143,6 +171,8 @@ fn project(errors: Vec<Invalid>) -> ConsignmentFailed {
             Receiver(BadSernderReceiver::BusinessNameTooLong(n)) => {
                 failed.receiver.business_name.push(too_long(n))
             }
+            BadPhone(position) => upsert(&mut failed.contact_methods, position, "invalid phone"),
+            BadEmail(position) => upsert(&mut failed.contact_methods, position, "invalid email"),
         }
     }
     failed
@@ -191,6 +221,11 @@ pub fn play() {
         receiver: SenderReceiverDetails {
             business_name: "bbbbb88888888888888888888".to_owned(),
         },
-        contact_methods: vec![ContactMethod::Email("foo".to_owned())],
+        contact_methods: vec![
+            ContactMethod::Email("foo".to_owned()),
+            ContactMethod::Phone("foo".repeat(10).to_owned()),
+            ContactMethod::Email("foo".to_owned()),
+            ContactMethod::Phone("foo".repeat(10).to_owned()),
+        ],
     });
 }
