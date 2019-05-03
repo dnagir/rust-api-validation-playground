@@ -33,18 +33,18 @@ struct ConsignmentData {
     contact_methods: Vec<ContactMethod>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum ShortAlphas {
     TooLong(usize),
     NonAlpha,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum BadParticipant {
     BusinessNameTooLong(usize),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Invalid {
     WhoPays(ShortAlphas),
     CostCentre(ShortAlphas),
@@ -256,4 +256,63 @@ pub fn play() {
             Email("foo".repeat(10).to_owned()),
         ],
     });
+}
+
+#[cfg(test)]
+mod test_validation {
+    use super::*;
+
+    #[test]
+    fn test_valid() {
+        let c = ConsignmentData {
+            direction: ConsignmentType::Outbound,
+            who_pays: "ok".to_owned(),
+            cost_centre: "ok".to_owned(),
+            sender: SenderReceiverDetails {
+                business_name: "ok".to_owned(),
+            },
+            receiver: SenderReceiverDetails {
+                business_name: "ok".to_owned(),
+            },
+            contact_methods: vec![Phone("12345".to_owned()), Email("asdasd".to_owned())],
+        };
+        assert!(validate(c).is_empty());
+    }
+
+    #[test]
+    fn test_flat_fields() {
+        let c = ConsignmentData {
+            direction: ConsignmentType::Outbound,
+            who_pays: "ok".repeat(10),
+            cost_centre: "ok".to_owned(),
+            sender: SenderReceiverDetails {
+                business_name: "ok".to_owned(),
+            },
+            receiver: SenderReceiverDetails {
+                business_name: "ok".to_owned(),
+            },
+            contact_methods: vec![],
+        };
+        assert_eq!(vec![WhoPays(TooLong(10)), WhoPays(NonAlpha)], validate(c));
+    }
+
+    #[test]
+    fn test_contact_methods() {
+        let c = ConsignmentData {
+            direction: ConsignmentType::Outbound,
+            who_pays: "ok".to_owned(),
+            cost_centre: "ok".to_owned(),
+            sender: SenderReceiverDetails {
+                business_name: "ok".to_owned(),
+            },
+            receiver: SenderReceiverDetails {
+                business_name: "ok".to_owned(),
+            },
+            contact_methods: vec![
+                Phone("12345".repeat(10).to_owned()),
+                Email("asdasd".repeat(10).to_owned()),
+            ],
+        };
+        assert_eq!(vec![BadPhone(0), BadEmail(1)], validate(c));
+    }
 }
